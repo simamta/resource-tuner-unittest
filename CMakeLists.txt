@@ -15,6 +15,9 @@ option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 option(BUILD_CLASSIFIER "Classifier" OFF)
 option(BUILD_STATE_DETECTOR "Display Detector" OFF)
 
+include(CTest)
+enable_testing()
+
 add_subdirectory(${CMAKE_SOURCE_DIR}/configs)
 add_subdirectory(${CMAKE_SOURCE_DIR}/modula)
 add_subdirectory(${CMAKE_SOURCE_DIR}/client)

@@ -61,4 +61,40 @@ if(BUILD_TESTS)
                                                        RestuneTestUtils)
 
     install(TARGETS RestuneComponentTests DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+    # ---------------------------------------------------------------------------
+    # Unit Test: rt_serverrequests_tests (Catch2 header-only, vendored)
+    # Self-contained: compiles only the minimal sources needed for ServerRequests
+    # ---------------------------------------------------------------------------
+    add_executable(rt_serverrequests_tests
+        ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_server_requests.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/catch2/catch_amalgamated.cpp
+    )
+
+    # Include paths: Catch2 and project headers
+    target_include_directories(rt_serverrequests_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/catch2             # catch_amalgamated.hpp
+    )
+    
+
+    
+    # Link against the core libraries so the test inherits PUBLIC includes & symbols
+    target_link_libraries(rt_serverrequests_tests PRIVATE
+        RestuneCore
+        RestuneExtAPIs
+        RestuneSignals
+        UrmAuxUtils
+        UrmClient
+    )
+
+    # C++ standard
+    target_compile_features(rt_serverrequests_tests PRIVATE cxx_std_17)
+    
+    # Extra test to emit JUnit XML into build/test-results
+    file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/test-results")
+    add_test(
+        NAME rt_serverrequests_tests_junit
+        COMMAND rt_serverrequests_tests -r junit -o ${CMAKE_BINARY_DIR}/test-results/rt_serverrequests_tests.xml
+    )
+  
 endif()
