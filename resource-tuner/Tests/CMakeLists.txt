@@ -98,6 +98,8 @@ if(BUILD_TESTS)
     set(COMPONENT_TEST_SOURCES
         # Catch2-converted file(s)
         ${CMAKE_CURRENT_SOURCE_DIR}/Component/RequestQueueTests_catch.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/Component/Trigger_catch.cpp   # <- use this
+
 
         # Catch2 main for component runner
         ${CMAKE_CURRENT_SOURCE_DIR}/Component/catch2_main_component.cpp

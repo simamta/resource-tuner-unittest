@@ -1,12 +1,6 @@
-
 // Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
 // SPDX-License-Identifier: BSD-3-Clause-Clear
-// Catch2-converted version of RequestQueueTests.cpp (logic unchanged)
 
-// Only required changes:
-//  - Use Catch2 macros: REQUIRE/TEST_CASE instead of C_ASSERT/RUN_TEST/REGISTER_TEST.
-//  - Move Init() (MakeAlloc<Message>(30)) into the relevant test that uses Message pool.
-//  - Do not alter test logic, threading, or ordering.
 
 #include "catch_amalgamated.hpp"
 #include "RequestQueue.h"
