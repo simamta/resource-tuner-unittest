@@ -1,58 +1,71 @@
+
 // Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
 // SPDX-License-Identifier: BSD-3-Clause-Clear
+// Catch2-converted version of RequestQueueTests.cpp (logic unchanged)
 
+// Only required changes:
+//  - Use Catch2 macros: REQUIRE/TEST_CASE instead of C_ASSERT/RUN_TEST/REGISTER_TEST.
+//  - Move Init() (MakeAlloc<Message>(30)) into the relevant test that uses Message pool.
+//  - Do not alter test logic, threading, or ordering.
+
+#include "catch_amalgamated.hpp"
 #include "RequestQueue.h"
 #include "TestUtils.h"
 #include "TestAggregator.h"
 
-static void Init() {
-    MakeAlloc<Message> (30);
-}
+#include <memory>
+#include <thread>
+#include <atomic>
+#include <mutex>
+#include <condition_variable>
+#include <vector>
+#include <algorithm>
+#include <chrono>
 
-static void TestRequestQueueTaskEnqueue() {
+TEST_CASE("TestRequestQueueTaskEnqueue", "[RequestQueue][Component]")
+{
+    // Original Init(): MakeAlloc<Message>(30) was called before the suite.
+    // We invoke it here because this test uses the Message pool.
+    MakeAlloc<Message>(30);
+
     std::shared_ptr<RequestQueue> queue = RequestQueue::getInstance();
     int32_t requestCount = 8;
     int32_t requestsProcessed = 0;
 
-    for(int32_t count = 0; count < requestCount; count++) {
+    for (int32_t count = 0; count < requestCount; count++) {
         Message* message = new (GetBlock<Message>()) Message;
         message->setDuration(9000);
-
         queue->addAndWakeup(message);
     }
 
-    while(queue->hasPendingTasks()) {
+    while (queue->hasPendingTasks()) {
         requestsProcessed++;
         Message* message = (Message*)queue->pop();
-
         FreeBlock<Message>(static_cast<void*>(message));
     }
 
-    C_ASSERT(requestsProcessed == requestCount);
+    REQUIRE(requestsProcessed == requestCount);
 }
 
-static void TestRequestQueueSingleTaskPickup1() {
+TEST_CASE("TestRequestQueueSingleTaskPickup1", "[RequestQueue][Component]")
+{
     std::shared_ptr<RequestQueue> requestQueue = RequestQueue::getInstance();
 
     // Consumer
     std::thread consumerThread([&]{
         requestQueue->wait();
-
-        while(requestQueue->hasPendingTasks()) {
+        while (requestQueue->hasPendingTasks()) {
             Request* req = (Request*)requestQueue->pop();
-
-            C_ASSERT(req->getRequestType() == REQ_RESOURCE_TUNING);
-            C_ASSERT(req->getHandle() == 200);
-            C_ASSERT(req->getClientPID() == 321);
-            C_ASSERT(req->getClientTID() == 2445);
-            C_ASSERT(req->getDuration() == -1);
-
+            REQUIRE(req->getRequestType() == REQ_RESOURCE_TUNING);
+            REQUIRE(req->getHandle() == 200);
+            REQUIRE(req->getClientPID() == 321);
+            REQUIRE(req->getClientTID() == 2445);
+            REQUIRE(req->getDuration() == -1);
             delete req;
         }
     });
 
     // Producer
-    // Enqueue a Request
     Request* req = new Request();
     req->setRequestType(REQ_RESOURCE_TUNING);
     req->setHandle(200);
@@ -65,7 +78,8 @@ static void TestRequestQueueSingleTaskPickup1() {
     consumerThread.join();
 }
 
-static void TestRequestQueueSingleTaskPickup2() {
+TEST_CASE("TestRequestQueueSingleTaskPickup2", "[RequestQueue][Component]")
+{
     std::shared_ptr<RequestQueue> requestQueue = RequestQueue::getInstance();
     std::atomic<int32_t> requestsProcessed(0);
     int8_t taskCondition = false;
@@ -76,35 +90,29 @@ static void TestRequestQueueSingleTaskPickup2() {
     std::thread consumerThread([&]{
         std::unique_lock<std::mutex> uniqueLock(taskLock);
         int8_t terminateProducer = false;
-
-        while(true) {
-            if(terminateProducer) {
+        while (true) {
+            if (terminateProducer) {
                 return;
             }
-
-            while(!taskCondition) {
+            while (!taskCondition) {
                 taskCV.wait(uniqueLock);
             }
-
-            while(requestQueue->hasPendingTasks()) {
+            while (requestQueue->hasPendingTasks()) {
                 Request* req = (Request*)requestQueue->pop();
                 requestsProcessed.fetch_add(1);
-
-                if(req->getHandle() == 0) {
+                if (req->getHandle() == 0) {
                     delete req;
                     terminateProducer = true;
                     break;
                 }
-
                 delete req;
             }
         }
     });
 
-    // producer
+    // Producer
     std::thread producerThread([&]{
         const std::unique_lock<std::mutex> uniqueLock(taskLock);
-
         Request* req = new Request;
         req->setRequestType(REQ_RESOURCE_TUNING);
         req->setDuration(-1);
@@ -113,7 +121,6 @@ static void TestRequestQueueSingleTaskPickup2() {
         req->setClientPID(321);
         req->setClientTID(2445);
         requestQueue->addAndWakeup(req);
-
         taskCondition = true;
         taskCV.notify_one();
     });
@@ -121,10 +128,11 @@ static void TestRequestQueueSingleTaskPickup2() {
     producerThread.join();
     consumerThread.join();
 
-    C_ASSERT(requestsProcessed.load() == 1);
+    REQUIRE(requestsProcessed.load() == 1);
 }
 
-static void TestRequestQueueMultipleTaskPickup() {
+TEST_CASE("TestRequestQueueMultipleTaskPickup", "[RequestQueue][Component]")
+{
     std::shared_ptr<RequestQueue> requestQueue = RequestQueue::getInstance();
     std::atomic<int32_t> requestsProcessed(0);
     int8_t taskCondition = false;
@@ -135,36 +143,30 @@ static void TestRequestQueueMultipleTaskPickup() {
     std::thread consumerThread([&]{
         std::unique_lock<std::mutex> uniqueLock(taskLock);
         int8_t terminateProducer = false;
-
-        while(true) {
-            if(terminateProducer) {
+        while (true) {
+            if (terminateProducer) {
                 return;
             }
-
-            while(!taskCondition) {
+            while (!taskCondition) {
                 taskCV.wait(uniqueLock);
             }
-
-            while(requestQueue->hasPendingTasks()) {
+            while (requestQueue->hasPendingTasks()) {
                 Request* req = (Request*)requestQueue->pop();
                 requestsProcessed.fetch_add(1);
-
-                if(req->getHandle() == -1) {
+                if (req->getHandle() == -1) {
                     delete req;
                     terminateProducer = true;
                     break;
                 }
-
                 delete req;
             }
         }
         return;
     });
 
+    // Producer: enqueue multiple
     std::thread producerThread([&]{
-        // Producer will enqueue multiple requests
         std::unique_lock<std::mutex> uniqueLock(taskLock);
-
         Request* req1 = new Request();
         req1->setRequestType(REQ_RESOURCE_TUNING);
         req1->setHandle(200);
@@ -210,10 +212,11 @@ static void TestRequestQueueMultipleTaskPickup() {
     consumerThread.join();
     producerThread.join();
 
-    C_ASSERT(requestsProcessed.load() == 4);
+    REQUIRE(requestsProcessed.load() == 4);
 }
 
-static void TestRequestQueueMultipleTaskAndProducersPickup() {
+TEST_CASE("TestRequestQueueMultipleTaskAndProducersPickup", "[RequestQueue][Component]")
+{
     std::shared_ptr<RequestQueue> requestQueue = RequestQueue::getInstance();
     std::atomic<int32_t> requestsProcessed(0);
     int32_t totalNumberOfThreads = 10;
@@ -224,35 +227,28 @@ static void TestRequestQueueMultipleTaskAndProducersPickup() {
     std::thread consumerThread([&]{
         std::unique_lock<std::mutex> uniqueLock(taskLock);
         int8_t terminateProducer = false;
-
-        while(true) {
-            if(terminateProducer) {
+        while (true) {
+            if (terminateProducer) {
                 return;
             }
-
-            while(!taskCondition) {
+            while (!taskCondition) {
                 taskCV.wait(uniqueLock);
             }
-
-            while(requestQueue->hasPendingTasks()) {
+            while (requestQueue->hasPendingTasks()) {
                 Request* req = (Request*)requestQueue->pop();
                 requestsProcessed.fetch_add(1);
-
-                if(req->getHandle() == -1) {
+                if (req->getHandle() == -1) {
                     delete req;
                     terminateProducer = true;
                     break;
                 }
-
                 delete req;
             }
         }
     });
 
     std::vector<std::thread> producerThreads;
-
-    // Create multiple producer threads
-    for(int32_t count = 0; count < totalNumberOfThreads; count++) {
+    for (int32_t count = 0; count < totalNumberOfThreads; count++) {
         auto threadStartRoutine = [&]{
             Request* req = new Request();
             req->setRequestType(REQ_RESOURCE_TUNING);
@@ -266,15 +262,14 @@ static void TestRequestQueueMultipleTaskAndProducersPickup() {
         producerThreads.push_back(std::thread(threadStartRoutine));
     }
 
-    for(int32_t i = 0; i < producerThreads.size(); i++) {
+    for (int32_t i = 0; i < (int32_t)producerThreads.size(); i++) {
         producerThreads[i].join();
     }
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
-    // Instrumented request to force the consumerThread to terminate
+
     std::thread terminateThread([&]{
         std::unique_lock<std::mutex> uniqueLock(taskLock);
-
         Request* exitReq = new Request();
         exitReq->setRequestType(REQ_RESOURCE_TUNING);
         exitReq->setHandle(-1);
@@ -283,7 +278,6 @@ static void TestRequestQueueMultipleTaskAndProducersPickup() {
         exitReq->setClientPID(100);
         exitReq->setClientTID(1155);
         requestQueue->addAndWakeup(exitReq);
-
         taskCondition = true;
         taskCV.notify_one();
     });
@@ -291,15 +285,17 @@ static void TestRequestQueueMultipleTaskAndProducersPickup() {
     consumerThread.join();
     terminateThread.join();
 
-    C_ASSERT(requestsProcessed.load() == totalNumberOfThreads + 1);
+    REQUIRE(requestsProcessed.load() == totalNumberOfThreads + 1);
 }
 
-static void TestRequestQueueEmptyPoll() {
+TEST_CASE("TestRequestQueueEmptyPoll", "[RequestQueue][Component]")
+{
     std::shared_ptr<RequestQueue> requestQueue = RequestQueue::getInstance();
-    C_ASSERT(requestQueue->pop() == nullptr);
+    REQUIRE(requestQueue->pop() == nullptr);
 }
 
-static void TestRequestQueuePollingPriority1() {
+TEST_CASE("TestRequestQueuePollingPriority1", "[RequestQueue][Component][Priority]")
+{
     std::shared_ptr<RequestQueue> requestQueue = RequestQueue::getInstance();
     int8_t taskCondition = false;
     std::mutex taskLock;
@@ -352,58 +348,46 @@ static void TestRequestQueuePollingPriority1() {
     requests[5]->setClientPID(115);
     requests[5]->setClientTID(1211);
 
-    // Suppose all the clients corresponding to the above requests have system permission
-    // So the processsing order will be determined by the value of priority in the Request
-    // - Sort the Requests in the above vector by priority
+    // Sort by priority (same as original)
     sort(requests.begin(), requests.end(), [&](Request* first, Request* second) {
         return first->getPriority() < second->getPriority();
     });
 
-    // Note, we haven't registered the consumer yet, instead we'll first add
-    // all the requests to the RequestQueue.
+    // Producer first
     std::thread producerThread([&]{
         std::unique_lock<std::mutex> uniqueLock(taskLock);
-
-        for(Request* request: requests) {
+        for (Request* request : requests) {
             requestQueue->addAndWakeup(request);
         }
-
         taskCondition = true;
         taskCV.notify_one();
     });
 
-
     sleep(1);
     int32_t requestsIndex = 0;
 
-    // Next create the Consumer
+    // Consumer
     std::thread consumerThread([&]{
         std::unique_lock<std::mutex> uniqueLock(taskLock);
         int8_t terminateProducer = false;
-
-        while(true) {
-            if(terminateProducer) {
+        while (true) {
+            if (terminateProducer) {
                 return;
             }
-
-            while(!taskCondition) {
+            while (!taskCondition) {
                 taskCV.wait(uniqueLock);
             }
-
-            while(requestQueue->hasPendingTasks()) {
+            while (requestQueue->hasPendingTasks()) {
                 Request* req = (Request*)requestQueue->pop();
-
-                if(req->getHandle() == -1) {
+                if (req->getHandle() == -1) {
                     delete req;
                     terminateProducer = true;
                     break;
                 }
-
-                C_ASSERT(req->getClientPID() == requests[requestsIndex]->getClientPID());
-                C_ASSERT(req->getClientTID() == requests[requestsIndex]->getClientTID());
-                C_ASSERT(req->getPriority() == requests[requestsIndex]->getPriority());
+                REQUIRE(req->getClientPID() == requests[requestsIndex]->getClientPID());
+                REQUIRE(req->getClientTID() == requests[requestsIndex]->getClientTID());
+                REQUIRE(req->getPriority() == requests[requestsIndex]->getPriority());
                 requestsIndex++;
-
                 delete req;
             }
         }
@@ -413,13 +397,13 @@ static void TestRequestQueuePollingPriority1() {
     consumerThread.join();
 }
 
-static void TestRequestQueuePollingPriority2() {
+TEST_CASE("TestRequestQueuePollingPriority2", "[RequestQueue][Component][Priority]")
+{
     std::shared_ptr<RequestQueue> requestQueue = RequestQueue::getInstance();
     int8_t taskCondition = false;
     std::mutex taskLock;
     std::condition_variable taskCV;
 
-    // Create some sample requests with varying priorities
     Request* systemPermissionRequest = new Request();
     systemPermissionRequest->setRequestType(REQ_RESOURCE_TUNING);
     systemPermissionRequest->setHandle(11);
@@ -444,15 +428,12 @@ static void TestRequestQueuePollingPriority2() {
     exitReq->setClientPID(102);
     exitReq->setClientTID(1220);
 
-    // Note, we haven't registered the consumer yet, instead we'll first add
-    // both the requests to the RequestQueue.
+    // Producer
     std::thread producerThread([&]{
         std::unique_lock<std::mutex> uniqueLock(taskLock);
-
         requestQueue->addAndWakeup(systemPermissionRequest);
         requestQueue->addAndWakeup(thirdPartyPermissionRequest);
         requestQueue->addAndWakeup(exitReq);
-
         taskCondition = true;
         taskCV.notify_one();
     });
@@ -460,40 +441,34 @@ static void TestRequestQueuePollingPriority2() {
     sleep(1);
     int32_t requestsIndex = 0;
 
-    // Next create the Consumer
+    // Consumer
     std::thread consumerThread([&]{
         std::unique_lock<std::mutex> uniqueLock(taskLock);
         int8_t terminateProducer = false;
-
-        while(true) {
-            if(terminateProducer) {
+        while (true) {
+            if (terminateProducer) {
                 return;
             }
-
-            while(!taskCondition) {
+            while (!taskCondition) {
                 taskCV.wait(uniqueLock);
             }
-
-            while(requestQueue->hasPendingTasks()) {
+            while (requestQueue->hasPendingTasks()) {
                 Request* req = (Request*)requestQueue->pop();
-
-                if(req->getHandle() == -1) {
+                if (req->getHandle() == -1) {
                     delete req;
                     terminateProducer = true;
                     break;
                 }
-
-                if(requestsIndex == 0) {
-                    C_ASSERT(req->getClientPID() == 321);
-                    C_ASSERT(req->getClientTID() == 2445);
-                    C_ASSERT(req->getHandle() == 11);
-                } else if(requestsIndex == 1) {
-                    C_ASSERT(req->getClientPID() == 234);
-                    C_ASSERT(req->getClientTID() == 5566);
-                    C_ASSERT(req->getHandle() == 23);
+                if (requestsIndex == 0) {
+                    REQUIRE(req->getClientPID() == 321);
+                    REQUIRE(req->getClientTID() == 2445);
+                    REQUIRE(req->getHandle() == 11);
+                } else if (requestsIndex == 1) {
+                    REQUIRE(req->getClientPID() == 234);
+                    REQUIRE(req->getClientTID() == 5566);
+                    REQUIRE(req->getHandle() == 23);
                 }
                 requestsIndex++;
-
                 delete req;
             }
         }
@@ -503,9 +478,9 @@ static void TestRequestQueuePollingPriority2() {
     producerThread.join();
 }
 
-static void TestRequestQueueInvalidPriority() {
+TEST_CASE("TestRequestQueueInvalidPriority", "[RequestQueue][Component][Error]")
+{
     std::shared_ptr<RequestQueue> requestQueue = RequestQueue::getInstance();
-
     Request* invalidRequest = new Request();
     invalidRequest->setRequestType(REQ_RESOURCE_TUNING);
     invalidRequest->setHandle(11);
@@ -514,24 +489,7 @@ static void TestRequestQueueInvalidPriority() {
     invalidRequest->setClientPID(321);
     invalidRequest->setClientTID(2445);
 
-    C_ASSERT(requestQueue->addAndWakeup(invalidRequest) == false);
+    REQUIRE(requestQueue->addAndWakeup(invalidRequest) == false);
+    // Note: we intentionally do NOT delete invalidRequest to keep logic identical to the original test.
 }
 
-static void RunTests() {
-    std::cout<<"Running Test Suite: [RequestQueueTests]\n"<<std::endl;
-
-    Init();
-    RUN_TEST(TestRequestQueueTaskEnqueue);
-    RUN_TEST(TestRequestQueueSingleTaskPickup1);
-    RUN_TEST(TestRequestQueueSingleTaskPickup2);
-    RUN_TEST(TestRequestQueueMultipleTaskPickup);
-    RUN_TEST(TestRequestQueueMultipleTaskAndProducersPickup);
-    RUN_TEST(TestRequestQueueEmptyPoll);
-    RUN_TEST(TestRequestQueuePollingPriority1);
-    RUN_TEST(TestRequestQueuePollingPriority2);
-    RUN_TEST(TestRequestQueueInvalidPriority);
-
-    std::cout<<"\nAll Tests from the suite: [RequestQueueTests], executed successfully"<<std::endl;
-}
-
-REGISTER_TEST(RunTests);
