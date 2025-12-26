@@ -42,6 +42,9 @@ if(BUILD_TESTS)
     # ----------------------------------------------------------------------------
     # Unit Test: rt_serverrequests_tests (single binary with all unit tests)
     # ----------------------------------------------------------------------------
+    
+    # Let CMake locate Catch2 v3 from the Yocto sysroot
+    find_package(Catch2 3 REQUIRED)
 
     # Collect all unit test sources in one variable
     set(RT_UNIT_TEST_SOURCES
@@ -55,23 +58,8 @@ if(BUILD_TESTS)
         # ...
     )
 
-<<<<<<< HEAD:resource-tuner/Tests/CMakeLists.txt
     add_executable(rt_serverrequests_tests
            ${RT_UNIT_TEST_SOURCES}
-    )
-=======
-    target_link_libraries(RestuneComponentTests PUBLIC UrmAuxUtils
-                                                       RestuneExtAPIs
-                                                       RestuneCore
-                                                       RestuneTestUtils)
->>>>>>> d6d559bf824ef57888a58bf6a3311dfa488b537e:resource-tuner/tests/CMakeLists.txt
-
-    # Include paths: Catch2 (vendored) and any project headers tests need
-    target_include_directories(rt_serverrequests_tests PRIVATE
-           ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/catch2          # catch_amalgamated.hpp
-           # Add any extra include dirs as your tests grow:
-           # ${CMAKE_SOURCE_DIR}/resource-tuner/public_headers
-           # ${CMAKE_SOURCE_DIR}/server/include
     )
 
     # Link against core libs so tests inherit PUBLIC includes & symbols
@@ -81,7 +69,7 @@ if(BUILD_TESTS)
          RestuneSignals
          UrmAuxUtils
          UrmClient
-         catch2_amalgamated
+         Catch2::Catch2
     )
 
     # C++ standard
@@ -102,6 +90,8 @@ if(BUILD_TESTS)
     # Component tests (Catch2 runner) — SINGLE TARGET
     # ----------------------------------------------------------------------------
     # Source list for component tests + Catch2 main TU
+    # Let CMake locate Catch2 v3 from the Yocto sysroot
+    find_package(Catch2 3 REQUIRED)
     set(COMPONENT_TEST_SOURCES
         # Catch2-converted file(s)
         ${CMAKE_CURRENT_SOURCE_DIR}/Component/RequestQueueTests_catch.cpp
@@ -131,7 +121,6 @@ if(BUILD_TESTS)
 
     # Include dirs: Catch2 (vendored) and project headers needed by tests
     target_include_directories(RestuneComponentTests PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/catch2
         ${CMAKE_CURRENT_SOURCE_DIR}/Utils/Include
         ${PROJECT_SOURCE_DIR}/resource-tuner/Core/Framework/Include
         ${PROJECT_SOURCE_DIR}/resource-tuner/Core/Extensions/Include
@@ -145,7 +134,7 @@ if(BUILD_TESTS)
         RestuneCore
         RestuneSignals
         RestuneTestUtils
-        catch2_amalgamated
+        Catch2::Catch2
     )
 
     target_compile_features(RestuneComponentTests PRIVATE cxx_std_17)

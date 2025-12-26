@@ -5,12 +5,9 @@ pkg_check_modules(LIBYAML REQUIRED yaml-0.1)
 option(BUILD_TESTS "Testing" OFF)
 option(BUILD_STATE_DETECTOR "Display Detector" OFF)
 
-<<<<<<< HEAD
 # Mandatory Builds
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/Core)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/Signals)
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/third_party/catch2)
-=======
 # Extensions Lib (for external linkage)
 file(GLOB SOURCES "extensions/Extensions.cpp")
 add_library(RestuneExtAPIs ${SOURCES})
@@ -50,7 +47,6 @@ target_include_directories(RestuneCore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/signal
 target_include_directories(RestuneCore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/init/Include)
 install(TARGETS RestuneCore LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
->>>>>>> d6d559bf824ef57888a58bf6a3311dfa488b537e
 if(BUILD_TESTS)
   add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/tests)
 endif()
