@@ -13,6 +13,15 @@
 #include "ErrCodes.h"
 
 /**
+ * @enum ModuleType
+ * @brief Enumeration for different modules supported by URM
+ */
+enum ModuleID : int8_t {
+    MOD_RESTUNE,
+    MOD_CLASSIFIER,
+};
+
+/**
  * @enum RequestType
  * @brief Enumeration for different types of Resource-Tuner Requests.
  */
@@ -78,9 +87,11 @@ enum TranslationUnit {
 };
 
 typedef struct {
-    char* buffer;
-    uint64_t bufferSize;
-    int64_t handle;
+    int8_t mModuleID;
+    int8_t mRequestType;
+    uint64_t mBufferSize;
+    int64_t mHandle;
+    char* mBuffer;
 } MsgForwardInfo;
 
 typedef struct {
@@ -92,7 +103,7 @@ typedef struct {
 // Global Typedefs: Declare Function Pointers as types
 typedef ErrCode (*EventCallback)(void*);
 typedef int8_t (*ServerOnlineCheckCallback)();
-typedef void (*ResourceTunerMessageReceivedCallback)(int32_t, MsgForwardInfo*);
+typedef void (*MessageReceivedCallback)(int32_t, MsgForwardInfo*);
 
 #define HIGH_TRANSFER_PRIORITY -1
 #define SERVER_CLEANUP_TRIGGER_PRIORITY -2
@@ -118,8 +129,8 @@ typedef void (*ResourceTunerMessageReceivedCallback)(int32_t, MsgForwardInfo*);
 #define RATE_LIMITER_DELTA "resource_tuner.rate_limiter.delta"
 #define RATE_LIMITER_PENALTY_FACTOR "resource_tuner.penalty.factor"
 #define RATE_LIMITER_REWARD_FACTOR "resource_tuner.reward.factor"
-#define LOGGER_LOGGING_LEVEL "resource_tuner.logging.level"
-#define LOGGER_LOGGING_LEVEL_TYPE "resource_tuner.logging.level.exact"
-#define LOGGER_LOGGING_OUTPUT_REDIRECT "resource_tuner.logging.redirect_to"
+#define LOGGER_LOGGING_LEVEL "urm.logging.level"
+#define LOGGER_LOGGING_LEVEL_TYPE "urm.logging.level.exact"
+#define LOGGER_LOGGING_OUTPUT_REDIRECT "urm.logging.redirect_to"
 
 #endif

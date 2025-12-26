@@ -1,4 +1,4 @@
-# Resource Tuner: A System Resource Provisioning Framework
+# Userspace Resource Manager: A System Resource Tuning Framework
 
 ## Table of Contents
 
@@ -16,13 +16,15 @@
 
 # Introduction
 
-Resource-tuner is a lightweight framework that helps to dynamically provision system resources like CPU, memory, Gpu, I/O, etc for user-space processes. It leverages kernel interfaces like procfs, sysfs and cgroups to infleunce the resource usage to ensure power and performance of applications or usecases in embedded and resource-constrained environments.
+Userspace Resource Manager is a lightweight framework which provides below
+- Contextual Classifier : Identifies static contexts of workloads
+- Resource Tuner : Helps to dynamically provision system resources like CPU, memory, Gpu, I/O, etc. It leverages kernel interfaces like procfs, sysfs and cgroups to infleunce the resource usage to ensure power and performance of applications or usecases in embedded and resource-constrained environments.
 
 Gaining control over system resources such as the CPU, caches, and GPU is a powerful capability in any developer’s toolkit. By fine-tuning these components, developers can optimize the system’s operating point to make more efficient use of hardware resources and significantly enhance the user experience while saving power.
 
 For example, increasing the CPU's dynamic clock and voltage scaling (DCVS) minimum frequency to 1 GHz can boost performance during demanding tasks. Conversely, capping the maximum frequency at 1.5 GHz can help conserve power during less intensive operations.
 
-Resource-tuner framework supports `Signals` which is dynamic provisioning of system resources in response to specific signals —such as app launches or app installations —based on configurations defined in YAML. It allows other software modules or applications to register extensions and add custom functionality tailored to their specific needs.
+Resource Tuner supports `Signals` which is dynamic provisioning of system resources in response to specific signals —such as app launches or app installations —based on configurations defined in YAML. It allows other software modules or applications to register extensions and add custom functionality tailored to their specific needs.
 
 ---
 
@@ -40,14 +42,18 @@ Refer the Examples Tab for guidance on resource-tuner API usage.
 ## Flexible Packaging: Packaging required modules
 - Core -> Core module which contains server, client, framwork and helper libraries.
 - Signals -> Contains support for provisioning system for the recieved signal
+- Contextual-Classifier -> Contains support for idenfitification of static usecases
 - Tests -> Unit tests and module level tests
 - CLI -> Command Line Interface to interact with service for debug and development purpose.
 
-Resource-tuner offers flexibility to select modules through the build system at compile time to make it suitable for devices which have stringent memory requirements. While Tests and Cli are debug and develoment modules which can be removed in the final product config. However Core module is mandatory.
+Userspace resource manager offers flexibility to select modules through the build system at compile time to make it suitable for devices which have stringent memory requirements. While Tests and Cli are debug and develoment modules which can be removed in the final product config. However resource tuner core module is mandatory.
 
 Alter options in corresponding build file like below (ex. cmake options)
 ```cmake
+option(BUILD_SIGNALS "Signals" OFF)
+option(BUILD_CONTEXTUAL_CLASSIFIER, "ContextualClassifier" OFF)
 option(BUILD_TESTS "Testing" OFF)
+option(BUILD_CLI "CLI" OFF)
 ```
 
 ---
@@ -58,38 +64,142 @@ option(BUILD_TESTS "Testing" OFF)
 
 ```text
 /
-├── Core
-│   ├── Framework                # Core Resource Provisioning Request Flow Logic
-│   ├── Modula                   # Common Utilities and Components used across Resource Tuner Modules
-│   ├── Client                   # Exposes the Client Facing APIs, and Defines the Client Communication Endpoint
-│   ├── Configs                  # Resources Config, Properties Config, Init Config
-│   └── Server                   # Defines the Server Communication Endpoint and other Common Server-Side Utils
-├── Signals                      # Optional Module, exposes Signal Tuning / Relay APIs
-│   └── Configs                  # Signal Configs, Ext Feature Configs
-├── Tests                        # Unit and System Wide Tests
-└── docs                         # Documentation
+├── Client
+├── Server                 # Defines the Server Communication Endpoint and other Common Server-Side Utils
+├── Resource Tuner
+│   ├── Core
+│   │   ├── Framework      # Core Resource Provisioning Request Flow Logic
+│   │   ├── Modula         # Common Utilities and Components used across Resource Tuner Modules
+│   ├── Signals            # Optional Module, exposes Signal Tuning / Relay APIs
+├── Contextual Classifier
+├── CLI                    # Exposes the Client Facing APIs, and Defines the Client Communication Endpoint
+├── Configs                # Resources Config, Properties Config, Init Config, Signal Configs, Ext Feature Configs
+├── Tests                  # Unit and System Wide Tests
+└── Docs                   # Documentation
 ```
 
 ---
 
 <div style="page-break-after: always;"></div>
 
-# Resource-tuner Key Points
-- Resource-tuner exposes a variery of APIs for resource provisioning. These APIs can be used by apps, features and other modules.
+# Userspace Resource Manager Key Points
+Userspace resource manager (uRM) contains
+- Userspace resource manager (uRM) exposes a variery of APIs for resource tuning and use-case/scenario tuning
+- These APIs can be used by apps, features and other modules
 - Using these APIs, client can tune any system resource parameters like cpu, dcvs, min / max frequencies etc.
-- A client library is provided, which takes care of encoding and sending the request message across to the server for further processing.
+- Userspace resource manager (uRM) provides
+## Resource Tuner
+- Queued requests processed by resource Tuner
 - Set of Yaml config files provides extensive configuration capability
 - Tuning resources provides control over system resources like CPU, Caches, GPU, etc for. Example changing the operating point of CPU DCVS min-freq to 1GHz to improve performance or limiting its max frequency to 1.5GHz to save power
 - Tuning Signals dynamically provisions the system resources for a use case or scenario such as apps launches, installations, etc. in response to received signal. Resources can be configured in yaml for signals.
 - Signals pick resources related to signal from SignalsConfig.yaml
 - Extension interface provides a way to customize resource-tuner behaviour, by specifying custom resources, custom signals and features.
 - Resource-tuner uses YAML based config files, for fetching information relating to resources/signals and properties.
+## Contextual Classifier
+- Contextual Classifier identifies usecase type based on offline trained model
+- Sends signals to Resource Tuner on app opening or launching with app pid and use-case type
+- Extracts use-case's further details based on app pid
+- Moves focused active app's threads to "Focused" cgroup
+- Move previously focused app threads to its origional group
+- This is an optional module which can be enabled at compile time
 
 ---
 
 <div style="page-break-after: always;"></div>
 
-# Resource Tuner APIs
+# System Independent Layer
+This section defines logical layer to improve code and config portability across different targets and systems.
+Please avoid changing these configs.
+
+## Logical IDs
+### 1. Logical Cluster Map
+Logical IDs for clusters. Configs of cluster map can be found in InitConfigs->ClusterMap section
+| LgcId  |     Name   |
+|--------|------------|
+|   0    |   "little" |
+|   1    |   "big"    |
+|   2    |   "prime"  |
+
+### 2. Cgroups map
+Logical IDs for cgroups. Configs of cgroups map in InitConfigs->CgroupsInfo section
+| Lgc Cgrp No |   Cgrp Name      |
+|-------------|------------------|
+|      0      |  "root"          |
+|      1      |  "init.scope"    |
+|      2      |  "system.slice"  |
+|      3      |  "user.slice"    |
+|      4      |  "focused.slice" |
+
+### 3. Mpam Groups Map
+Logical IDs for MPAM groups. Configs of mpam grp map in InitConfigs->MpamGroupsInfo section
+| LgcId  |    Mpam grp Name  |
+|--------|-------------------|
+|   0    |      "default"    |
+|   1    |       "video"     |
+|   2    |       "camera"    |
+|   3    |       "games"     |
+
+## Resources
+Resource Types/Categories
+|      Resource Type    | type  |
+|-----------------------|-------|
+|   Lpm                 |   0   |
+|   Caches              |   1   |
+|   Sched               |   3   |
+|   Dcvs                |   4   |
+|   Gpu                 |   5   |
+|   Npu                 |   6   |
+|   Memory              |   7   |
+|   Mpam                |   8   |
+|   Cgroup              |   9   |
+|   Storage/Io          |   a   |
+
+Resource Code is composed of 2 least significant bytes contains resource ID and next significant byte contains resource type
+i.e. 0xrr tt iiii  (i: resource id, t: resoruce type, r: reserved)
+
+|      Resource Name                          |    Id             |
+|---------------------------------------------|-------------------|
+|   RES_TUNER_CPU_DMA_LATENCY                 |   0x 00 01 0000   |
+|   RES_TUNER_PM_QOS_LATENCY                  |   0x 00 01 0001   |
+|   RES_TUNER_SCHED_UTIL_CLAMP_MIN            |   0x 00 03 0000   |
+|   RES_TUNER_SCHED_UTIL_CLAMP_MAX            |   0x 00 03 0001   |
+|   RES_TUNER_SCHED_ENERGY_AWARE              |   0x 00 03 0002   |
+|   RES_TUNER_SCALING_MIN_FREQ                |   0x 00 04 0000   |
+|   RES_TUNER_SCALING_MAX_FREQ                |   0x 00 04 0001   |
+|   RES_TUNER_RATE_LIMIT_US                   |   0x 00 04 0002   |
+|   RES_TUNER_CGROUP_MOVE_PID                 |   0x 00 09 0000   |
+|   RES_TUNER_CGROUP_MOVE_TID                 |   0x 00 09 0001   |
+|   RES_TUNER_CGROUP_RUN_ON_CORES             |   0x 00 09 0002   |
+|   RES_TUNER_CGROUP_RUN_ON_CORES_EXCLUSIVELY |   0x 00 09 0003   |
+|   RES_TUNER_CGROUP_FREEZE                   |   0x 00 09 0004   |
+|   RES_TUNER_CGROUP_LIMIT_CPU_TIME           |   0x 00 09 0005   |
+|   RES_TUNER_CGROUP_RUN_WHEN_CPU_IDLE        |   0x 00 09 0006   |
+|   RES_TUNER_CGROUP_UCLAMP_MIN               |   0x 00 09 0007   |
+|   RES_TUNER_CGROUP_UCLAMP_MAX               |   0x 00 09 0008   |
+|   RES_TUNER_CGROUP_RELATIVE_CPU_WEIGHT      |   0x 00 09 0009   |
+|   RES_TUNER_CGROUP_HIGH_MEMORY              |   0x 00 09 000a   |
+|   RES_TUNER_CGROUP_MAX_MEMORY               |   0x 00 09 000b   |
+|   RES_TUNER_CGROUP_LOW_MEMORY               |   0x 00 09 000c   |
+|   RES_TUNER_CGROUP_MIN_MEMORY               |   0x 00 09 000d   |
+|   RES_TUNER_CGROUP_SWAP_MAX_MEMORY          |   0x 00 09 000e   |
+|   RES_TUNER_CGROUP_IO_WEIGHT                |   0x 00 09 000f   |
+|   RES_TUNER_CGROUP_CPU_LATENCY              |   0x 00 09 0011   |
+
+These are defined in resource config file, but should not be changed. Resources can be added.
+
+## Signals
+Signals
+
+|      Signal           |     Id          |
+|-----------------------|-----------------|
+|   URM_APP_OPEN        |   0x 00000001   |
+|   URM_APP_CLOSE       |   0x 00000002   |
+
+
+<div style="page-break-after: always;"></div>
+
+# APIs
 This API suite allows you to manage system resource provisioning through tuning requests. You can issue, modify, or withdraw resource tuning requests with specified durations and priorities.
 
 ## tuneResources
@@ -169,34 +279,6 @@ int8_t untuneResources(int64_t handle);
 **Returns:**
 `int8_t`
 - `0` if the request was successfully submitted.
-- `-1` otherwise.
-
----
-<div style="page-break-after: always;"></div>
-
-## getProp
-
-**Description:**
-Gets a property from the config store
-
-**API Signature:**
-```cpp
-int8_t getProp(const char* prop,
-               char* buffer,
-               size_t buffer_size,
-               const char* def_value);
-```
-
-**Parameters:**
-
-- `prop` (`const char*`): Name of the Property to be fetched.
-- `buffer` (`char*`): Pointer to a buffer to hold the result, i.e. the property value corresponding to the specified name.
-- `buffer_size` (`size_t`): Size of the buffer.
-- `def_value` (`const char*`): Value to be written to the buffer in case a property with the specified Name is not found in the Config Store
-
-**Returns:**
-`int8_t`
-- `0` If the Property was found in the store, and successfully fetched
 - `-1` otherwise.
 
 ---
@@ -299,6 +381,34 @@ int64_t relaySignal(uint32_t signalCode,
 - `-1`: Otherwise
 
 ---
+<div style="page-break-after: always;"></div>
+
+## getProp
+
+**Description:**
+Gets a property from the config file, this is used as property config file used for enabling or disabling internal features in uRM, can also be used by modules or clients to enable/disable features in their software based on property configs in uRM.
+
+**API Signature:**
+```cpp
+int8_t getProp(const char* prop,
+               char* buffer,
+               size_t buffer_size,
+               const char* def_value);
+```
+
+**Parameters:**
+
+- `prop` (`const char*`): Name of the Property to be fetched.
+- `buffer` (`char*`): Pointer to a buffer to hold the result, i.e. the property value corresponding to the specified name.
+- `buffer_size` (`size_t`): Size of the buffer.
+- `def_value` (`const char*`): Value to be written to the buffer in case a property with the specified Name is not found in the Config Store
+
+**Returns:**
+`int8_t`
+- `0` If the Property was found in the store, and successfully fetched
+- `-1` otherwise.
+
+---
 
 <div style="page-break-after: always;"></div>
 
@@ -309,10 +419,10 @@ Resource-tuner utilises YAML files for configuration. This includes the resource
 Initialisation configs are mentioned in InitConfig.yaml file. This config enables resource-tuner to setup the required settings at the time of initialisation before any request processing happens.
 
 ### Common Initialization Configs
-Common initialization configs are defined in /etc/resource-tuner/common/InitConfig.yaml
+Common initialization configs are defined in /etc/urm/common/InitConfig.yaml
 
 ### Overriding Initialization Configs
-Targets can override initialization configs (in addition to common init configs, i.e. overrides specific configs) by simply pushing its own InitConfig.yaml into /etc/resource-tuner/custom/InitConfig.yaml
+Targets can override initialization configs (in addition to common init configs, i.e. overrides specific configs) by simply pushing its own InitConfig.yaml into /etc/urm/custom/InitConfig.yaml
 
 ### Overiding with Custom Extension File
 RESTUNE_REGISTER_CONFIG(INIT_CONFIG, "/bin/InitConfigCustom.yaml");
@@ -433,10 +543,10 @@ InitConfigs:
 Tunable resources are specified via ResourcesConfig.yaml file.
 
 ### Common Resource Configs
-Common resource configs are defined in /etc/resource-tuner/common/ResourcesConfig.yaml.
+Common resource configs are defined in /etc/urm/common/ResourcesConfig.yaml.
 
 ### Overriding Resource Configs
-Targets can override resource cofigs (can fully override or selective resources) by simply pushing its own ResourcesConfig.yaml into /etc/resource-tuner/custom/ResourcesConfig.yaml
+Targets can override resource cofigs (can fully override or selective resources) by simply pushing its own ResourcesConfig.yaml into /etc/urm/custom/ResourcesConfig.yaml
 
 ### Overiding with Custom Extension File
 RESTUNE_REGISTER_CONFIG(RESOURCE_CONFIG, "/bin/targetResourceConfigCustom.yaml");
@@ -498,10 +608,10 @@ ResourceConfigs:
 PropertiesConfig.yaml file stores various properties which are used by resource-tuner modules internally. For example, to allocate sufficient amount of memory for different types, or to determine the Pulse Monitor duration. Client can also use this as a property store to store their properties which gives it flexibility to control properties depending on the target.
 
 ### Common Properties Configs
-Common resource configs are defined in /etc/resource-tuner/common/PropertiesConfig.yaml.
+Common resource configs are defined in /etc/urm/common/PropertiesConfig.yaml.
 
 ### Overriding Properties Configs
-Targets can override Properties cofigs (can fully override or selective resources) by simply pushing its own PropertiesConfig.yaml into /etc/resource-tuner/custom/PropertiesConfig.yaml
+Targets can override Properties cofigs (can fully override or selective resources) by simply pushing its own PropertiesConfig.yaml into /etc/urm/custom/PropertiesConfig.yaml
 
 ### Overiding with Custom Properties File
 RESTUNE_REGISTER_CONFIG(PROPERTIES_CONFIG, "/bin/targetPropertiesConfigCustom.yaml"); if Client have no specific extensions like custom resources or features only want to change the config then the above method (using the same file name and pushing it to custom folder) is the best method to go for.
@@ -580,7 +690,7 @@ SignalConfigs:
 
 ## 5. (Optional) Target Configs
 The file TargetConfig.yaml defines the target configs, note this is an optional config, i.e. this
-file need not necessarily be provided. Resource-tuner can dynamically fetch system info, like target name,
+file need not necessarily be provided. uRM can dynamically fetch system info, like target name,
 logical to physical core / cluster mapping, number of cores etc. Use this file, if you want to
 provide this information explicitly. If the TargetConfig.yaml is provided, resource-tuner will always
 overide default dynamically generated target information and use it. Also note, there are no field-level default values available if the TargetConfig.yaml is provided. Hence if you wish to provide this file, then you'll need to provide all the complete required information.
@@ -983,7 +1093,7 @@ Resource-tuner provides a minimal CLI to interact with the server. This is provi
 
 ### 1. Send a Tune Request
 ```bash
-./resource_tuner_cli --tune --duration <> --priority <> --num <> --res <>
+/usr/bin/urmCli --tune --duration <> --priority <> --num <> --res <>
 ```
 Where:
 - `duration`: Duration in milliseconds for the tune request
@@ -994,36 +1104,36 @@ Where:
 Example:
 ```bash
 # Single Resource in a Request
-./resource_tuner_cli --tune --duration 5000 --priority 0 --num 1 --res "65536:700"
+/usr/bin/urmCli --tune --duration 5000 --priority 0 --num 1 --res "65536:700"
 
 # Multiple Resources in single Request
-./resource_tuner_cli --tune --duration 4400 --priority 1 --num 2 --res "0x80030000:700,0x80040001:155667"
+/usr/bin/urmCli --tune --duration 4400 --priority 1 --num 2 --res "0x80030000:700,0x80040001:155667"
 
 # Multi-Valued Resource
-./resource_tuner_cli --tune --duration 9500 --priority 0 --num 1 --res "0x00090002:0,0,1,3,5"
+/usr/bin/urmCli --tune --duration 9500 --priority 0 --num 1 --res "0x00090002:0,0,1,3,5"
 
 # Specifying ResInfo (useful for Core and Cluster type Resources)
-./resource_tuner_cli --tune --duration 5000 --priority 0 --num 1 --res "0x00040000#0x00000100:1620438"
+/usr/bin/urmCli --tune --duration 5000 --priority 0 --num 1 --res "0x00040000#0x00000100:1620438"
 
 # Everything at once
-./resource_tuner_cli --tune --duration 6500 --priority 0 --num 2 --res "0x00030000:800;0x00040011#0x00000101:50000,100000"
+/usr/bin/urmCli --tune --duration 6500 --priority 0 --num 2 --res "0x00030000:800;0x00040011#0x00000101:50000,100000"
 ```
 
 ### 2. Send an Untune Request
 ```bash
-./resource_tuner_cli --untune --handle <>
+/usr/bin/urmCli --untune --handle <>
 ```
 Where:
 - `handle`: Handle of the previously issued tune request, which needs to be untuned
 
 Example:
 ```bash
-./resource_tuner_cli --untune --handle 50
+/usr/bin/urmCli --untune --handle 50
 ```
 
 ### 3. Send a Retune Request
 ```bash
-./resource_tuner_cli --retune --handle <> --duration <>
+/usr/bin/urmCli --retune --handle <> --duration <>
 ```
 Where:
 - `handle`: Handle of the previously issued tune request, which needs to be retuned
@@ -1031,20 +1141,33 @@ Where:
 
 Example:
 ```bash
-./resource_tuner_cli --retune --handle 7 --duration 8000
+/usr/bin/urmCli --retune --handle 7 --duration 8000
 ```
 
 ### 4. Send a getProp Request
 
 ```bash
-./resource_tuner_cli --getProp --key <>
+/usr/bin/urmCli --getProp --key <>
 ```
 Where:
 - `key`: The Prop name of which the corresponding value needs to be fetched
 
 Example:
 ```bash
-./resource_tuner_cli --getProp --key "resource_tuner.logging.level"
+/usr/bin/urmCli --getProp --key "urm.logging.level"
+```
+
+### 5. Send a tuneSignal Request
+
+```bash
+/usr/bin/urmCli --signal --scode <>
+```
+Where:
+- `key`: The Prop name of which the corresponding value needs to be fetched
+
+Example:
+```bash
+/usr/bin/urmCli --signal --scode "0x00fe0ab1"
 ```
 
 <div style="page-break-after: always;"></div>
@@ -1060,3 +1183,4 @@ For questions, suggestions, or contributions, feel free to reach out:
 This project is licensed under the BSD 3-Clause Clear License.
 
 <div style="page-break-after: always;"></div>
+
