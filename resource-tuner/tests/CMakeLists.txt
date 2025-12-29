@@ -90,7 +90,6 @@ if(BUILD_TESTS)
     # ----------------------------------------------------------------------------
     # Source list for component tests + Catch2 main TU
     # Let CMake locate Catch2 v3 from the Yocto sysroot
-    find_package(Catch2 3 REQUIRED)
     set(COMPONENT_TEST_SOURCES
         # Catch2-converted file(s)
         ${CMAKE_CURRENT_SOURCE_DIR}/Component/RequestQueueTests_catch.cpp
