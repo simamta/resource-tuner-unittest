@@ -1,8 +1,7 @@
 // Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 
-
-#include "catch_amalgamated.hpp"
+#include <catch2/catch_test_macros.hpp>
 #include "RequestQueue.h"
 #include "TestUtils.h"
 #include "TestAggregator.h"
